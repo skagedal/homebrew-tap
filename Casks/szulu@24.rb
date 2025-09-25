@@ -1,4 +1,4 @@
-cask "zulu" do
+cask "szulu@24" do
   arch arm: "aarch64", intel: "x64"
 
   version "24.0.2,24.32.13"
