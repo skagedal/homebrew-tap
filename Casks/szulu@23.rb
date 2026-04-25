@@ -1,9 +1,9 @@
-cask "szulu@24" do
+cask "szulu@23" do
   arch arm: "aarch64", intel: "x64"
 
-  version "24.0.2,24.32.13"
-  sha256 arm:   "3c7c165ab906d77cb236a4a70565de27004718f7ba260765578fd26442f945f6",
-         intel: "06ea24fa2d739e3444d0e00ed72ee3df40fe27dc16f9eb855667263c48d24ac9"
+  version "23.0.2,23.32.11"
+  sha256 arm:   "825084ccc10217136b2090a5b277cf693234cb7324d880a665ebcfb066f32a43",
+         intel: "0b9e55f672e86b445aa162980fc47b696d14bfa30a7cd488afb85c3fec98646b"
 
   url "https://cdn.azul.com/zulu/bin/zulu#{version.csv.second}-ca-jdk#{version.csv.first}-macosx_#{arch}.dmg",
       referer: "https://www.azul.com/downloads/"
@@ -12,7 +12,7 @@ cask "szulu@24" do
   homepage "https://www.azul.com/downloads/"
 
   livecheck do
-    url "https://api.azul.com/metadata/v1/zulu/packages?os=macos&arch=#{arch}&archive_type=dmg&java_package_type=jdk&javafx_bundled=false&latest=true&release_status=ga&availability_types=ca&java_version=24"
+    url "https://api.azul.com/metadata/v1/zulu/packages?os=macos&arch=#{arch}&archive_type=dmg&java_package_type=jdk&javafx_bundled=false&latest=true&release_status=ga&availability_types=ca&java_version=23"
     regex(/zulu(\d+(?:[._]\d+)*)-ca-jdk(\d+(?:\.\d+)*)-macosx_#{arch}\.dmg/i)
     strategy :json do |json, regex|
       json.map do |item|

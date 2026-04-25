@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+#
+# Query the Azul API for the latest GA release of each supported JDK major
+# version and (re)generate the corresponding Homebrew cask from the template.
+#
+# Usage: ./update
+
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+CASKS_DIR="${REPO_DIR}/Casks"
+TEMPLATE="${REPO_DIR}/bin/szulu.rb.template"
+GENERATOR="${REPO_DIR}/bin/generate.java"
+
+MAJOR_VERSIONS=(21 22 23 24 25)
+
+API_BASE="https://api.azul.com/metadata/v1/zulu/packages"
+
+# Fetch the "latest" GA package list filtered by major version and arch and
+# return the entry with the highest java_version. Prints JSON object.
+fetch_latest() {
+    local major="$1"
+    local arch="$2"
+    local url="${API_BASE}?os=macos&arch=${arch}&archive_type=dmg&java_package_type=jdk&javafx_bundled=false&latest=true&release_status=ga&availability_types=ca&java_version=${major}"
+    curl -fsSL "$url" | jq -e 'sort_by(.java_version) | reverse | .[0]'
+}
+
+# Fetch the sha256 of a package by uuid.
+fetch_sha256() {
+    local uuid="$1"
+    curl -fsSL "${API_BASE}/${uuid}" | jq -re '.sha256_hash'
+}
+
+# Parse "zulu25.34.17-ca-jdk25.0.3-macosx_aarch64.dmg" → distro / java versions.
+parse_distro_version() {
+    sed -E 's|.*/zulu([0-9.]+)-ca-jdk.*|\1|'
+}
+parse_java_version() {
+    sed -E 's|.*-ca-jdk([0-9.]+)-macosx.*|\1|'
+}
+
+update_one() {
+    local major="$1"
+    echo "==> szulu@${major}"
+
+    local arm_json x64_json
+    arm_json="$(fetch_latest "$major" aarch64)"
+    x64_json="$(fetch_latest "$major" x64)"
+
+    local arm_url arm_uuid x64_uuid
+    arm_url="$(jq -r '.download_url' <<<"$arm_json")"
+    arm_uuid="$(jq -r '.package_uuid' <<<"$arm_json")"
+    x64_uuid="$(jq -r '.package_uuid' <<<"$x64_json")"
+
+    local distro_version java_version
+    distro_version="$(echo "$arm_url" | parse_distro_version)"
+    java_version="$(echo "$arm_url" | parse_java_version)"
+
+    local sha_arm sha_intel
+    sha_arm="$(fetch_sha256 "$arm_uuid")"
+    sha_intel="$(fetch_sha256 "$x64_uuid")"
+
+    echo "    java=${java_version} distro=${distro_version}"
+
+    local output="${CASKS_DIR}/szulu@${major}.rb"
+    jbang "$GENERATOR" \
+        --template     "$TEMPLATE" \
+        --output       "$output" \
+        --major        "$major" \
+        --java-version "$java_version" \
+        --distro-version "$distro_version" \
+        --sha256-arm   "$sha_arm" \
+        --sha256-intel "$sha_intel"
+}
+
+for v in "${MAJOR_VERSIONS[@]}"; do
+    update_one "$v"
+done
+
+echo
+echo "Done. Run 'git diff Casks' to see what changed."
