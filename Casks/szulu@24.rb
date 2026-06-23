@@ -24,7 +24,7 @@ cask "szulu@24" do
     end
   end
 
-  depends_on macos: ">= :big_sur"
+  depends_on macos: :big_sur
 
   pkg "Double-Click to Install Azul Zulu JDK #{version.major}.pkg"
 
