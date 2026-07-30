@@ -12,7 +12,7 @@ CASKS_DIR="${REPO_DIR}/Casks"
 TEMPLATE="${REPO_DIR}/bin/szulu.rb.template"
 GENERATOR="${REPO_DIR}/bin/generate.java"
 
-MAJOR_VERSIONS=(21 22 23 24 25)
+MAJOR_VERSIONS=(21 22 23 24 25 26)
 
 API_BASE="https://api.azul.com/metadata/v1/zulu/packages"
 
