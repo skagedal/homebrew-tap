@@ -3,11 +3,11 @@
 # Query the Azul API for the latest GA release of each supported JDK major
 # version and (re)generate the corresponding Homebrew cask from the template.
 #
-# Usage: ./update
+# Usage: ./ci/update-dependencies
 
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CASKS_DIR="${REPO_DIR}/Casks"
 TEMPLATE="${REPO_DIR}/bin/szulu.rb.template"
 GENERATOR="${REPO_DIR}/bin/generate.java"
@@ -77,5 +77,21 @@ for v in "${MAJOR_VERSIONS[@]}"; do
     update_one "$v"
 done
 
+# Pin the actions in .github/workflows to commit SHAs and move them forward,
+# honouring the three-day min_age in .pinact.yaml. Exit 1 means pinact found
+# something to pin and 2 that something needs a person to decide, neither of
+# which should fail this script — finding something to pin is the point of
+# running it, and the caller reads the working tree to see what happened.
+#
+# Unauthenticated GitHub API calls are capped at 60 an hour, which one run
+# can get through, so lend it the gh token when there is one.
+echo "==> GitHub Actions"
+if [[ -z "${PINACT_GITHUB_TOKEN:-}" && -z "${GITHUB_TOKEN:-}" ]] &&
+    command -v gh >/dev/null 2>&1; then
+    PINACT_GITHUB_TOKEN="$(gh auth token 2>/dev/null || true)"
+    [[ -n "$PINACT_GITHUB_TOKEN" ]] && export PINACT_GITHUB_TOKEN
+fi
+(cd "$REPO_DIR" && pinact run --update) || echo "    pinact exited $?, see above"
+
 echo
-echo "Done. Run 'git diff Casks' to see what changed."
+echo "Done. Run 'git diff' to see what changed."
