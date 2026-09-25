@@ -1,0 +1,123 @@
+name: Update dependencies
+
+on:
+  # Monday morning, so a week of updates is waiting at the start of the week.
+  schedule:
+    - cron: "30 5 * * 1"
+  workflow_dispatch: {}
+
+# The branch is pushed and the pull request opened with a GitHub App's token,
+# so the workflow's own token needs nothing beyond reading the repository —
+# pinact is the only thing that uses it, for the GitHub API.
+permissions:
+  contents: read
+
+jobs:
+  update:
+    name: Update dependencies and open a pull request
+    runs-on: ubuntu-latest
+    steps:
+      # The pull request comes from a GitHub App rather than from me, for two
+      # reasons. GitHub does not notify me of anything I did myself, so a pull
+      # request of my own would arrive in silence; one from the App can ask
+      # for my review, and that notifies me. And unlike the workflow's own
+      # GITHUB_TOKEN, a push made with the App's token triggers workflows, so
+      # CI runs on the pull request — which is what checks that the update
+      # builds. The token covers this repository only, carries only what the
+      # steps below need, and is revoked when the job ends.
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          client-id: ${{ vars.UPDATES_APP_CLIENT_ID }}
+          private-key: ${{ secrets.UPDATES_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          # pinact edits the pins in .github/workflows, and GitHub refuses a
+          # push that touches workflow files without this.
+          permission-workflows: write
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      # jbang runs bin/generate.java, which renders each cask from the
+      # template. It needs a JDK to run on; any current one will do.
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: jbangdev/setup-jbang@2b1b465a7b75f4222b81426f23a01e013aa7b95c # v0.1.1
+
+      - uses: skagedal/action-pinact-setup@0e686abf491418977fb6de9e8ba8ce17104e288a # v1.0.0
+
+      - name: Run ci/update-dependencies
+        env:
+          # The script lends pinact a token when it finds one in the
+          # environment and otherwise falls back to `gh auth token`, which is
+          # not set up here. Unauthenticated, pinact gets 60 GitHub API calls
+          # an hour, which a single run can get through.
+          PINACT_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./ci/update-dependencies
+
+      - name: Did anything move?
+        id: changed
+        run: |
+          set -euo pipefail
+          if [[ -n "$(git status --porcelain)" ]]; then
+              echo "any=true" >> "$GITHUB_OUTPUT"
+          else
+              echo "any=false" >> "$GITHUB_OUTPUT"
+              echo "Nothing moved this week."
+          fi
+
+      # Every other repo here leaves this to the CI workflow that runs on the
+      # pull request. This one has no CI workflow, and nothing to build, so the
+      # check is that each generated cask is still valid Ruby. `brew audit`
+      # would say more, but casks only audit on macOS.
+      - name: Check the casks parse
+        if: steps.changed.outputs.any == 'true'
+        run: |
+          set -euo pipefail
+          for cask in Casks/*.rb; do
+              ruby -c "$cask"
+          done
+
+      - name: Open a pull request
+        if: steps.changed.outputs.any == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          today="$(date -u +%F)"
+          branch="updates-$today"
+          # Commit as the App, so the commits on the branch belong to the same
+          # identity that pushes them and opens the pull request.
+          bot="${APP_SLUG}[bot]"
+          bot_id="$(gh api "/users/$bot" --jq .id)"
+          git config user.name "$bot"
+          git config user.email "${bot_id}+${bot}@users.noreply.github.com"
+          git switch -c "$branch"
+          git add -A
+          git commit -m "Update dependencies, $today"
+          # --force so a second run on the same day replaces the branch rather
+          # than failing. Nothing but this workflow writes to it.
+          git push --force origin "$branch"
+          if [[ "$(gh pr list --head "$branch" --state open --json number --jq 'length')" != "0" ]]; then
+              echo "A pull request for $branch is already open; pushed to it."
+              exit 0
+          fi
+          {
+              echo "Weekly dependency update, from \`.github/workflows/update-dependencies.yml\`."
+              echo
+              echo "The workflow checked that every cask still parses before opening this."
+              echo
+              echo '```'
+              git --no-pager diff --stat 'HEAD^'
+              echo '```'
+          } >"$RUNNER_TEMP/pr-body.md"
+          # The review request is what reaches me as a notification.
+          gh pr create \
+              --title "Update dependencies, $today" \
+              --body-file "$RUNNER_TEMP/pr-body.md" \
+              --reviewer skagedal
