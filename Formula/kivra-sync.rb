@@ -3,9 +3,8 @@ class KivraSync < Formula
 
   desc "Download receipts and letters from Kivra"
   homepage "https://github.com/felixandersen/kivra-sync"
-  url "https://github.com/felixandersen/kivra-sync/archive/57513c369509e00ab520a11d86603871afa1db46.tar.gz"
-  version "1.1.1-57513c3"
-  sha256 "196d2242bbf9ca2127f173dc6ee9501c59b2847db962063997d13d32e8ce515e"
+  url "https://github.com/felixandersen/kivra-sync/archive/refs/tags/v1.1.2.tar.gz"
+  sha256 "a68c1689257abd9eb75a05343694e49afba5de92eacacc80808d4e064d1f98ae"
   license "MIT"
 
   depends_on "cffi" => :no_linkage
@@ -115,7 +114,7 @@ class KivraSync < Formula
   end
 
   test do
-    assert_match version.to_s.split("-").first, shell_output("#{bin}/kivra-sync --version")
+    assert_match version.to_s, shell_output("#{bin}/kivra-sync --version")
 
     system libexec/"bin/python", "-c", <<~PY
       import sys
