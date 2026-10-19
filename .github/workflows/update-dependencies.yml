@@ -25,7 +25,7 @@ jobs:
       # CI runs on the pull request — which is what checks that the update
       # builds. The token covers this repository only, carries only what the
       # steps below need, and is revoked when the job ends.
-      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         id: app-token
         with:
           client-id: ${{ vars.UPDATES_APP_CLIENT_ID }}
@@ -42,7 +42,7 @@ jobs:
 
       # jbang runs bin/generate.java, which renders each cask from the
       # template. It needs a JDK to run on; any current one will do.
-      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: 21
